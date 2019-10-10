@@ -1,0 +1,7 @@
+{
+  "domain": "snips_light",
+  "name": "Snips Light",
+  "dependencies": ["mqtt"],
+  "requirements": ["webcolors"]
+}
+
