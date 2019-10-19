@@ -9,7 +9,7 @@ DOMAIN = 'snips_light'
 DEPENDENCIES = ['mqtt']
 
 
-FLASH_LIGHT_ENTITY_ID = 'light.tischbeleuchtung'
+FLASH_LIGHT_ENTITY_ID = 'light.bettbeleuchtung'
 ROOMS = {'Schlafzimmer': [{'type': 'Bettbeleuchtung', 'entity_id': 'light.bettbeleuchtung'},
                           {'type': 'Tischbeleuchtung', 'entity_id': 'light.tischbeleuchtung'}]}
 SNIPS_SITE_IDS = {'default': 'Schlafzimmer'}
@@ -31,6 +31,7 @@ class Flashing:
         self.saved_rgb_color = None
         self.saved_brightness = None
         self.current_rgb_color = None
+
 
 def setup(hass, config):
     mqtt = hass.components.mqtt
@@ -100,6 +101,18 @@ def setup(hass, config):
             data = {'sessionId': session_id}
         mqtt.publish('hermes/dialogueManager/endSession', json.dumps(data))
 
+    def continue_session(session_id, text, intent_filter=None, custom_data=None, send_error=None, slot=None):
+        data = {'sessionId': session_id, 'text': text}
+        if intent_filter:
+            data['intentFilter'] = intent_filter
+        if custom_data:
+            data['customData'] = custom_data
+        if send_error:
+            data['sendIntentNotRecognized'] = True
+        if slot:
+            data['slot'] = slot
+        mqtt.publish('hermes/dialogueManager/continueSession', json.dumps(data))
+
     def one_flash_finished_received(msg):
         current_state = hass.states.get(flash_light_entity_id).state
         if fl.flash_status:
@@ -166,8 +179,8 @@ def setup(hass, config):
         return entity_ids, None
 
     def get_rgb_color(css_color):
-        named_tuple = webcolors.name_to_rgb(css_color)
         try:
+            named_tuple = webcolors.name_to_rgb(css_color)
             rgb_color = (named_tuple.red, named_tuple.green, named_tuple.blue)
         except ValueError:
             return None, "Ich habe die Farbe nicht verstanden."
@@ -234,13 +247,24 @@ def setup(hass, config):
         payload_data = json.loads(msg.payload)
         slot_dict = get_slot_dict(payload_data)
 
-        entity_ids, error = get_entity_ids(slot_dict, payload_data['siteId'])
-        if error:
-            end_session(payload_data['sessionId'], error)
+        if payload_data['customData'] is not None:
+            print(payload_data['customData'])
+            entity_ids = payload_data['customData'].split(';')
+        else:
+            entity_ids, error = get_entity_ids(slot_dict, payload_data['siteId'])
+            if error:
+                end_session(payload_data['sessionId'], error)
+                return
+
+        if 'color' not in slot_dict:
+            continue_session(payload_data['sessionId'], "Welche Farbe?", ['domi:FarbeWechseln'],
+                             custom_data=entity_ids, slot='color')
+            return
 
         rgb_color, error = get_rgb_color(slot_dict['color'])
         if error:
             end_session(payload_data['sessionId'], error)
+            return
 
         for entity_id in entity_ids:
             if entity_id == flash_light_entity_id and fl.flash_status:
