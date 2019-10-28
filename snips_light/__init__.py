@@ -148,7 +148,7 @@ def setup(hass, config):
         mqtt.publish('hermes/dialogueManager/continueSession', json.dumps(data))
 
     def one_flash_finished_received(msg):
-        data = json.loads(msg.payload.decode())
+        data = json.loads(msg.payload)
         light = snipslight.lights[data['entity_id']]
         if light.flash_status:
             light.one_flash()
@@ -165,7 +165,7 @@ def setup(hass, config):
         return light
 
     def start_listening_received(msg):
-        light = get_flashlight_obj(json.loads(msg.payload.decode()))
+        light = get_flashlight_obj(json.loads(msg.payload))
         if not light:
             return
         light.current_rgb_color = COLOR_LISTEN
@@ -173,14 +173,14 @@ def setup(hass, config):
             light.start_flashing()
 
     def text_captured_received(msg):
-        light = get_flashlight_obj(json.loads(msg.payload.decode()))
+        light = get_flashlight_obj(json.loads(msg.payload))
         if not light:
             return
         if light.flash_status:
             light.current_rgb_color = COLOR_LOAD
 
     def tts_say_received(msg):
-        light = get_flashlight_obj(json.loads(msg.payload.decode()))
+        light = get_flashlight_obj(json.loads(msg.payload))
         if not light:
             return
         light.current_rgb_color = COLOR_SPEAK
@@ -188,7 +188,7 @@ def setup(hass, config):
             light.start_flashing()
 
     def session_ended_received(msg):
-        light = get_flashlight_obj(json.loads(msg.payload.decode()))
+        light = get_flashlight_obj(json.loads(msg.payload))
         if not light:
             return
         if light.flash_status:
