@@ -49,7 +49,7 @@ class Light:
     def start_flashing(self):
         self.first_flash()
         self.flash_status = True
-        self.mqtt.publish('hass/one_flash_finished', None)
+        self.mqtt.publish('hass/one_flash_finished', json.dumps({'entity_id': self.entity_id}))
 
     def first_flash(self):
         self.saved_state = self.hass.states.get(self.entity_id).state
