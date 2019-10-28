@@ -10,8 +10,15 @@ DEPENDENCIES = ['mqtt']
 
 
 FLASH_LIGHT_ENTITY_ID = 'light.bettbeleuchtung'
-ROOMS = {'Schlafzimmer': [{'type': 'Bettbeleuchtung', 'entity_id': 'light.bettbeleuchtung'},
-                          {'type': 'Tischbeleuchtung', 'entity_id': 'light.tischbeleuchtung'}]}
+ROOMS = {
+    'Schlafzimmer': {
+        'lights': [
+            {'type': 'Bettbeleuchtung', 'entity_id': 'light.bettbeleuchtung'},
+            {'type': 'Tischbeleuchtung', 'entity_id': 'light.tischbeleuchtung'}
+        ],
+        'flash_light_entity_id': 'light.bettbeleuchtung'
+    }
+}
 SNIPS_SITE_IDS = {'default': 'Schlafzimmer'}
 
 COLOR_LISTEN = (0, 0, 255)
@@ -24,75 +31,102 @@ BRIGHTNESS_MIN = 2
 BRIGHTNESS_MAX = 100
 
 
-class Flashing:
-    def __init__(self):
+class Light:
+    def __init__(self, hass, mqtt, entity_id):
+        self.hass = hass
+        self.mqtt = mqtt
+        self.entity_id = entity_id
         self.flash_status = False
         self.saved_state = None
         self.saved_rgb_color = None
         self.saved_brightness = None
         self.current_rgb_color = None
 
+    def store_light_attributes(self):
+        self.saved_rgb_color = self.hass.states.get(self.entity_id).attributes['rgb_color']
+        self.saved_brightness = self.hass.states.get(self.entity_id).attributes['brightness']
+
+    def start_flashing(self):
+        self.first_flash()
+        self.flash_status = True
+        self.mqtt.publish('hass/one_flash_finished', None)
+
+    def first_flash(self):
+        self.saved_state = self.hass.states.get(self.entity_id).state
+        if self.saved_state == 'off':
+            data = {'entity_id': self.entity_id,
+                    'transition': 0.3}
+            self.hass.services.call('light', 'turn_on', data)
+            time.sleep(0.1)
+            self.store_light_attributes()
+            data = {'entity_id': self.entity_id,
+                    'rgb_color': self.current_rgb_color,
+                    'transition': 0.1}
+            self.hass.services.call('light', 'turn_on', data)
+            time.sleep(0.3)
+        else:
+            self.store_light_attributes()
+            data = {'entity_id': self.entity_id,
+                    'transition': 0.3}
+            self.hass.services.call('light', 'turn_off', data)
+            time.sleep(0.4)
+
+    def one_flash(self):
+        current_state = self.hass.states.get(self.entity_id).state
+        if current_state == 'on':
+            data = {'entity_id': self.entity_id,
+                    'transition': 0.3}
+            self.hass.services.call('light', 'turn_off', data, True)
+        else:
+            data = {'entity_id': self.entity_id,
+                    'rgb_color': self.current_rgb_color,
+                    'transition': 0.3}
+            self.hass.services.call('light', 'turn_on', data, True)
+        time.sleep(0.4)
+        self.mqtt.publish('hass/one_flash_finished', json.dumps({'entity_id': self.entity_id}))
+
+    def last_flash(self):
+        if self.saved_state == 'off':
+            data = {'entity_id': self.entity_id,
+                    'transition': 0.3}
+            self.hass.services.call('light', 'turn_on', data, True)
+            time.sleep(0.3)
+            data = {'entity_id': self.entity_id,
+                    'rgb_color': self.saved_rgb_color,
+                    'brightness': self.saved_brightness,
+                    'transition': 0.1}
+            self.hass.services.call('light', 'turn_on', data, False)
+            time.sleep(0.1)
+            data = {'entity_id': self.entity_id,
+                    'transition': 0.3}
+            self.hass.services.call('light', 'turn_off', data, False)
+        else:
+            current_state = self.hass.states.get(self.entity_id).state
+            if current_state == 'on':
+                data = {'entity_id': self.entity_id,
+                        'transition': 0.3}
+                self.hass.services.call('light', 'turn_off', data, False)
+                time.sleep(0.4)
+            data = {'entity_id': self.entity_id,
+                    'rgb_color': self.saved_rgb_color,
+                    'brightness': self.saved_brightness,
+                    'transition': 0.3}
+            self.hass.services.call('light', 'turn_on', data, True)
+
+
+class SnipsLight:
+    def __init__(self, hass, mqtt):
+        self.lights = dict()
+        for room_name in ROOMS:
+            for light_dict in ROOMS[room_name]['lights']:
+                entity_id = light_dict['entity_id']
+                self.lights[entity_id] = Light(hass, mqtt, entity_id)
+
 
 def setup(hass, config):
     mqtt = hass.components.mqtt
     flash_light_entity_id = config[DOMAIN].get('flash_entity_id', FLASH_LIGHT_ENTITY_ID)
-    fl = Flashing()
-
-    def store_light_attributes():
-        fl.saved_rgb_color = hass.states.get(flash_light_entity_id).attributes['rgb_color']
-        fl.saved_brightness = hass.states.get(flash_light_entity_id).attributes['brightness']
-
-    def first_flash():
-        fl.saved_state = hass.states.get(flash_light_entity_id).state
-        if fl.saved_state == 'off':
-            data = {'entity_id': flash_light_entity_id,
-                    'transition': 0.3}
-            hass.services.call('light', 'turn_on', data)
-            time.sleep(0.1)
-            store_light_attributes()
-            data = {'entity_id': flash_light_entity_id,
-                    'rgb_color': fl.current_rgb_color,
-                    'transition': 0.1}
-            hass.services.call('light', 'turn_on', data)
-            time.sleep(0.3)
-        else:
-            store_light_attributes()
-            data = {'entity_id': flash_light_entity_id,
-                    'transition': 0.3}
-            hass.services.call('light', 'turn_off', data)
-            time.sleep(0.4)
-
-    def last_flash(current_state):
-        if fl.saved_state == 'off':
-            data = {'entity_id': flash_light_entity_id,
-                    'transition': 0.3}
-            hass.services.call('light', 'turn_on', data, True)
-            time.sleep(0.3)
-            data = {'entity_id': flash_light_entity_id,
-                    'rgb_color': fl.saved_rgb_color,
-                    'brightness': fl.saved_brightness,
-                    'transition': 0.1}
-            hass.services.call('light', 'turn_on', data, False)
-            time.sleep(0.1)
-            data = {'entity_id': flash_light_entity_id,
-                    'transition': 0.3}
-            hass.services.call('light', 'turn_off', data, False)
-        else:
-            if current_state == 'on':
-                data = {'entity_id': flash_light_entity_id,
-                        'transition': 0.3}
-                hass.services.call('light', 'turn_off', data, False)
-                time.sleep(0.4)
-            data = {'entity_id': flash_light_entity_id,
-                    'rgb_color': fl.saved_rgb_color,
-                    'brightness': fl.saved_brightness,
-                    'transition': 0.3}
-            hass.services.call('light', 'turn_on', data, True)
-
-    def start_flashing():
-        first_flash()
-        fl.flash_status = True
-        one_flash_finished_received(None)
+    snipslight = SnipsLight(hass, mqtt)
 
     def end_session(session_id, text=None):
         if text:
@@ -114,37 +148,51 @@ def setup(hass, config):
         mqtt.publish('hermes/dialogueManager/continueSession', json.dumps(data))
 
     def one_flash_finished_received(msg):
-        current_state = hass.states.get(flash_light_entity_id).state
-        if fl.flash_status:
-            if current_state == 'on':
-                data = {'entity_id': flash_light_entity_id,
-                        'transition': 0.3}
-                hass.services.call('light', 'turn_off', data, True)
-            else:
-                data = {'entity_id': flash_light_entity_id,
-                        'rgb_color': fl.current_rgb_color,
-                        'transition': 0.3}
-                hass.services.call('light', 'turn_on', data, True)
-            time.sleep(0.4)
-            mqtt.publish('hass/one_flash_finished', None)
+        data = json.loads(msg.payload.decode())
+        light = snipslight.lights[data['entity_id']]
+        if light.flash_status:
+            light.one_flash()
         else:
-            last_flash(current_state)
+            light.last_flash()
+
+    def get_flashlight_obj(data):
+        site_id = data['siteId']
+        if site_id not in SNIPS_SITE_IDS or SNIPS_SITE_IDS[site_id] not in ROOMS \
+                or not ROOMS[SNIPS_SITE_IDS[site_id]].get('flash_light_entity_id'):
+            return None
+        entity_id = ROOMS[SNIPS_SITE_IDS[site_id]].get('flash_light_entity_id')
+        light = snipslight.lights[entity_id]
+        return light
 
     def start_listening_received(msg):
-        fl.current_rgb_color = COLOR_LISTEN
-        if not fl.flash_status:
-            start_flashing()
+        light = get_flashlight_obj(json.loads(msg.payload.decode()))
+        if not light:
+            return
+        light.current_rgb_color = COLOR_LISTEN
+        if not light.flash_status:
+            light.start_flashing()
 
     def text_captured_received(msg):
-        fl.current_rgb_color = COLOR_LOAD
+        light = get_flashlight_obj(json.loads(msg.payload.decode()))
+        if not light:
+            return
+        if light.flash_status:
+            light.current_rgb_color = COLOR_LOAD
 
     def tts_say_received(msg):
-        fl.current_rgb_color = COLOR_SPEAK
-        if not fl.flash_status:
-            start_flashing()
+        light = get_flashlight_obj(json.loads(msg.payload.decode()))
+        if not light:
+            return
+        light.current_rgb_color = COLOR_SPEAK
+        if not light.flash_status:
+            light.start_flashing()
 
     def session_ended_received(msg):
-        fl.flash_status = False
+        light = get_flashlight_obj(json.loads(msg.payload.decode()))
+        if not light:
+            return
+        if light.flash_status:
+            light.flash_status = False
 
     def get_slot_dict(payload_data):
         slot_dict = {}
@@ -155,7 +203,7 @@ def setup(hass, config):
     def get_entity_ids(slot_dict, site_id):
         entity_ids = []
         if 'location' in slot_dict and slot_dict['location'] in ROOMS:
-            for light_dict in ROOMS[slot_dict['location']]:
+            for light_dict in ROOMS[slot_dict['location']]['lights']:
                 if 'type' in slot_dict:
                     if light_dict['type'] == slot_dict['type']:
                         entity_ids.append(light_dict['entity_id'])
@@ -163,10 +211,10 @@ def setup(hass, config):
                     entity_ids.append(light_dict['entity_id'])
         elif 'location' in slot_dict and slot_dict['location'] == "alle" and ROOMS:
             for room_name in ROOMS:
-                for light_dict in ROOMS[room_name]:
+                for light_dict in ROOMS[room_name]['lights']:
                     entity_ids.append(light_dict['entity_id'])
         elif site_id in SNIPS_SITE_IDS and SNIPS_SITE_IDS[site_id] in ROOMS:
-            for light_dict in ROOMS[SNIPS_SITE_IDS[site_id]]:
+            for light_dict in ROOMS[SNIPS_SITE_IDS[site_id]]['lights']:
                 if 'type' in slot_dict:
                     if light_dict['type'] == slot_dict['type']:
                         entity_ids.append(light_dict['entity_id'])
@@ -195,8 +243,9 @@ def setup(hass, config):
             end_session(payload_data['sessionId'], error)
 
         for entity_id in entity_ids:
-            if entity_id == flash_light_entity_id and fl.flash_status:
-                fl.saved_state = 'off'
+            light = snipslight.lights[entity_id]
+            if entity_id == flash_light_entity_id and light.flash_status:
+                light.saved_state = 'off'
             else:
                 data = {'entity_id': entity_id,
                         'transition': 0.3}
@@ -227,12 +276,13 @@ def setup(hass, config):
             rgb_color = None
 
         for entity_id in entity_ids:
-            if entity_id == flash_light_entity_id and fl.flash_status:
-                fl.saved_state = 'on'
+            light = snipslight.lights[entity_id]
+            if entity_id == flash_light_entity_id and light.flash_status:
+                light.saved_state = 'on'
                 if brightness:
-                    fl.saved_brightness = brightness
+                    light.saved_brightness = brightness
                 if rgb_color:
-                    fl.saved_rgb_color = rgb_color
+                    light.saved_rgb_color = rgb_color
             else:
                 data = {'entity_id': entity_id,
                         'transition': 0.3}
@@ -267,9 +317,10 @@ def setup(hass, config):
             return
 
         for entity_id in entity_ids:
-            if entity_id == flash_light_entity_id and fl.flash_status:
-                fl.saved_state = 'on'
-                fl.saved_rgb_color = rgb_color
+            light = snipslight.lights[entity_id]
+            if entity_id == flash_light_entity_id and light.flash_status:
+                light.saved_state = 'on'
+                light.saved_rgb_color = rgb_color
             else:
                 data = {'entity_id': entity_id,
                         'rgb_color': rgb_color,
@@ -304,12 +355,13 @@ def setup(hass, config):
             return
 
         for entity_id in entity_ids:
+            light = snipslight.lights[entity_id]
             brightness = None
             if 'brightness' in slot_dict:
                 brightness = int(slot_dict['brightness'] * 2.55)
             elif 'action' in slot_dict:
-                if entity_id == flash_light_entity_id and fl.flash_status:
-                    brightness = brightness_action(slot_dict, fl.saved_brightness)
+                if entity_id == flash_light_entity_id and light.flash_status:
+                    brightness = brightness_action(slot_dict, light.saved_brightness)
                 elif hass.states.get(entity_id).state == 'on':
                     brightness = brightness_action(slot_dict, hass.states.get(entity_id).attributes['brightness'])
                 elif hass.states.get(entity_id).state == 'off':
@@ -326,9 +378,9 @@ def setup(hass, config):
                 brightness = int(BRIGHTNESS_MIN * 2.55)
 
             if brightness:
-                if entity_id == flash_light_entity_id and fl.flash_status:
-                    fl.saved_state = 'on'
-                    fl.saved_brightness = brightness
+                if entity_id == flash_light_entity_id and light.flash_status:
+                    light.saved_state = 'on'
+                    light.saved_brightness = brightness
                 else:
                     data = {'entity_id': entity_id,
                             'brightness': brightness,
