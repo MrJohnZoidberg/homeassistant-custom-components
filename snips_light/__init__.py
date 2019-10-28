@@ -19,7 +19,7 @@ ROOMS = {
         'flash_light_entity_id': 'light.bettbeleuchtung'
     }
 }
-SNIPS_SITE_IDS = {'default': 'Schlafzimmer'}
+SNIPS_SITE_IDS = {'bedroom': 'Schlafzimmer'}
 
 COLOR_LISTEN = (0, 0, 255)
 COLOR_LOAD = (0, 255, 255)
