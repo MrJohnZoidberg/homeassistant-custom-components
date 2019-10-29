@@ -337,10 +337,11 @@ def setup(hass, config):
                 hass.services.call('light', 'turn_on', data)
 
         req_room = slot_dict.get('location')
-        if req_room and req_room not in ["alle", "hier"] and req_room != SNIPS_SITE_IDS[payload_data['siteId']]:
-            answer = f"Im Raum {req_room} wurde die Farbe gewechselt."
-        else:
+        if not req_room or req_room in ["alle", "hier"] or \
+                payload_data['siteId'] in SNIPS_SITE_IDS and req_room == SNIPS_SITE_IDS[payload_data['siteId']]:
             answer = None
+        else:
+            answer = f"Im Raum {req_room} wurde die Farbe gewechselt."
 
         end_session(payload_data['sessionId'], answer)
 
