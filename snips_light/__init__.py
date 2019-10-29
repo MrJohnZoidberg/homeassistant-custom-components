@@ -317,7 +317,7 @@ def setup(hass, config):
 
         if 'color' not in slot_dict:
             continue_session(payload_data['sessionId'], "Welche Farbe?", ['domi:FarbeWechseln'],
-                             custom_data=entity_ids, slot='color')
+                             custom_data=";".join(entity_ids), slot='color')
             return
 
         rgb_color, error = get_rgb_color(slot_dict['color'])
