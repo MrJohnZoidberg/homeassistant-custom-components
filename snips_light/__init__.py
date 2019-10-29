@@ -244,6 +244,11 @@ def setup(hass, config):
             return None, "Ich habe die Farbe nicht verstanden."
         return rgb_color, None
 
+    def is_single_other_room(room, request_siteid):
+        is_same_room = request_siteid in SNIPS_SITE_IDS and room == SNIPS_SITE_IDS[request_siteid]
+        result = not room or room in ["alle", "hier"] or is_same_room
+        return not result
+
     def lights_off_received(msg):
         payload_data = json.loads(msg.payload)
         slot_dict = get_slot_dict(payload_data)
@@ -260,7 +265,19 @@ def setup(hass, config):
                 data = {'entity_id': entity_id,
                         'transition': 0.3}
                 hass.services.call('light', 'turn_off', data)
-        end_session(payload_data['sessionId'])
+
+        req_room = slot_dict.get('location')
+        if is_single_other_room(req_room, payload_data['siteId']):
+            lights_on = [light_dict['entity_id'] for light_dict in ROOMS[req_room]['lights']
+                         if hass.states.get(light_dict['entity_id']).state == "on"]
+            if lights_on:
+                answer = f"Im Raum {req_room} sind noch weitere Lichter an."
+            else:
+                answer = f"Im Raum {req_room} wurde das Licht vollständig ausgeschaltet."
+        else:
+            answer = None
+
+        end_session(payload_data['sessionId'], answer)
 
     def lights_on_received(msg):
         payload_data = json.loads(msg.payload)
@@ -301,7 +318,14 @@ def setup(hass, config):
                 if rgb_color:
                     data['rgb_color'] = rgb_color
                 hass.services.call('light', 'turn_on', data)
-        end_session(payload_data['sessionId'])
+
+        req_room = slot_dict.get('location')
+        if is_single_other_room(req_room, payload_data['siteId']):
+            answer = f"Im Raum {req_room} wurde das Licht angeschaltet."
+        else:
+            answer = None
+
+        end_session(payload_data['sessionId'], answer)
 
     def color_change_received(msg):
         payload_data = json.loads(msg.payload)
@@ -336,12 +360,10 @@ def setup(hass, config):
                         'transition': 0.3}
                 hass.services.call('light', 'turn_on', data)
 
-        req_room = slot_dict.get('location')
-        if not req_room or req_room in ["alle", "hier"] or \
-                payload_data['siteId'] in SNIPS_SITE_IDS and req_room == SNIPS_SITE_IDS[payload_data['siteId']]:
-            answer = None
+        if is_single_other_room(slot_dict.get('location'), payload_data['siteId']):
+            answer = f"Im Raum {slot_dict.get('location')} wurde die Farbe gewechselt."
         else:
-            answer = f"Im Raum {req_room} wurde die Farbe gewechselt."
+            answer = None
 
         end_session(payload_data['sessionId'], answer)
 
