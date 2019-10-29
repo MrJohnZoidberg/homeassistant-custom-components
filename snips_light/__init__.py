@@ -201,19 +201,27 @@ def setup(hass, config):
         return slot_dict
 
     def get_entity_ids(slot_dict, site_id):
-        entity_ids = []
+        # requested room
         if 'location' in slot_dict and slot_dict['location'] in ROOMS:
+            entity_ids = list()
             for light_dict in ROOMS[slot_dict['location']]['lights']:
                 if 'type' in slot_dict:
                     if light_dict['type'] == slot_dict['type']:
                         entity_ids.append(light_dict['entity_id'])
                 else:
                     entity_ids.append(light_dict['entity_id'])
+
+        # all rooms
         elif 'location' in slot_dict and slot_dict['location'] == "alle" and ROOMS:
+            entity_ids = list()
             for room_name in ROOMS:
                 for light_dict in ROOMS[room_name]['lights']:
                     entity_ids.append(light_dict['entity_id'])
-        elif site_id in SNIPS_SITE_IDS and SNIPS_SITE_IDS[site_id] in ROOMS:
+
+        # room of request
+        elif 'location' in slot_dict and slot_dict['location'] == "hier" or \
+                site_id in SNIPS_SITE_IDS and SNIPS_SITE_IDS[site_id] in ROOMS:
+            entity_ids = list()
             for light_dict in ROOMS[SNIPS_SITE_IDS[site_id]]['lights']:
                 if 'type' in slot_dict:
                     if light_dict['type'] == slot_dict['type']:
@@ -222,9 +230,11 @@ def setup(hass, config):
                     entity_ids.append(light_dict['entity_id'])
         else:
             return None, "Nicht richtig konfiguriert."
+
         if not entity_ids:
             return None, "Die gewünschten Lampen gibt es nicht."
-        return entity_ids, None
+        else:
+            return entity_ids, None
 
     def get_rgb_color(css_color):
         try:
@@ -298,7 +308,6 @@ def setup(hass, config):
         slot_dict = get_slot_dict(payload_data)
 
         if payload_data['customData'] is not None:
-            print(payload_data['customData'])
             entity_ids = payload_data['customData'].split(';')
         else:
             entity_ids, error = get_entity_ids(slot_dict, payload_data['siteId'])
@@ -326,7 +335,14 @@ def setup(hass, config):
                         'rgb_color': rgb_color,
                         'transition': 0.3}
                 hass.services.call('light', 'turn_on', data)
-        end_session(payload_data['sessionId'])
+
+        req_room = slot_dict.get('location')
+        if req_room and req_room not in ["alle", "hier"] and req_room != SNIPS_SITE_IDS[payload_data['siteId']]:
+            answer = f"Im Raum {req_room} wurde die Farbe gewechselt."
+        else:
+            answer = None
+
+        end_session(payload_data['sessionId'], answer)
 
     def brightness_action(slot_dict, brightness):
         if slot_dict['action'] == 'higher':
