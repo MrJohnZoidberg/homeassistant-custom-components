@@ -256,6 +256,7 @@ def setup(hass, config):
         entity_ids, error = get_entity_ids(slot_dict, payload_data['siteId'])
         if error:
             end_session(payload_data['sessionId'], error)
+            return
 
         for entity_id in entity_ids:
             light = snipslight.lights[entity_id]
@@ -286,6 +287,7 @@ def setup(hass, config):
         entity_ids, error = get_entity_ids(slot_dict, payload_data['siteId'])
         if error:
             end_session(payload_data['sessionId'], error)
+            return
 
         if 'brightness' in slot_dict:
             if int(slot_dict['brightness']) > BRIGHTNESS_MAX:
@@ -299,6 +301,7 @@ def setup(hass, config):
             rgb_color, error = get_rgb_color(slot_dict['color'])
             if error:
                 end_session(payload_data['sessionId'], error)
+                return
         else:
             rgb_color = None
 
