@@ -355,13 +355,16 @@ def setup(hass, config):
         for entity_id in entity_ids:
             light = snipslight.lights[entity_id]
             if entity_id == flash_light_entity_id and light.flash_status:
-                light.saved_state = 'on'
                 light.saved_rgb_color = rgb_color
             else:
-                data = {'entity_id': entity_id,
-                        'rgb_color': rgb_color,
-                        'transition': 0.3}
-                hass.services.call('light', 'turn_on', data)
+                state = hass.states.get(entity_id).state
+                if state == "on":
+                    data = {'entity_id': entity_id,
+                            'rgb_color': rgb_color,
+                            'transition': 0.3}
+                    hass.services.call('light', 'turn_on', data)
+                else:
+                    light.saved_rgb_color = rgb_color
 
         if is_single_other_room(slot_dict.get('location'), payload_data['siteId']):
             answer = f"Im Raum {slot_dict.get('location')} wurde die Farbe gewechselt."
