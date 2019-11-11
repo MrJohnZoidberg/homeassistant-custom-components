@@ -47,12 +47,17 @@ class Light:
         self.saved_brightness = self.hass.states.get(self.entity_id).attributes['brightness']
 
     def start_flashing(self):
-        self.first_flash()
-        self.flash_status = True
-        self.mqtt.publish('hass/one_flash_finished', json.dumps({'entity_id': self.entity_id}))
+        success = self.first_flash()
+        if success:
+            self.flash_status = True
+            self.mqtt.publish('hass/one_flash_finished', json.dumps({'entity_id': self.entity_id}))
 
     def first_flash(self):
-        self.saved_state = self.hass.states.get(self.entity_id).state
+        result = self.hass.states.get(self.entity_id)
+        if not result:
+            return False
+        else:
+            self.saved_state = result.state
         if self.saved_state == 'off':
             data = {'entity_id': self.entity_id,
                     'transition': 0.3}
@@ -70,6 +75,7 @@ class Light:
                     'transition': 0.3}
             self.hass.services.call('light', 'turn_off', data)
             time.sleep(0.4)
+        return True
 
     def one_flash(self):
         current_state = self.hass.states.get(self.entity_id).state
