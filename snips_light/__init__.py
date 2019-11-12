@@ -423,12 +423,12 @@ def setup(hass, config):
                 end_session(payload_data['sessionId'], "Du hast keinen Wert gesagt.")
                 return
 
-            if brightness > int(BRIGHTNESS_MAX * 2.55):
-                brightness = int(BRIGHTNESS_MAX * 2.55)
-            elif brightness < int(BRIGHTNESS_MIN * 2.55):
-                brightness = int(BRIGHTNESS_MIN * 2.55)
-
             if brightness:
+                if brightness > int(BRIGHTNESS_MAX * 2.55):
+                    brightness = int(BRIGHTNESS_MAX * 2.55)
+                elif brightness < int(BRIGHTNESS_MIN * 2.55):
+                    brightness = int(BRIGHTNESS_MIN * 2.55)
+
                 if entity_id == flash_light_entity_id and light.flash_status:
                     light.saved_state = 'on'
                     light.saved_brightness = brightness
