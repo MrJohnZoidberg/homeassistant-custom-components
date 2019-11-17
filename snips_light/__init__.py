@@ -47,10 +47,12 @@ class Light:
         self.saved_brightness = self.hass.states.get(self.entity_id).attributes['brightness']
 
     def start_flashing(self):
+        self.flash_status = True
         success = self.first_flash()
         if success:
-            self.flash_status = True
             self.mqtt.publish('hass/one_flash_finished', json.dumps({'entity_id': self.entity_id}))
+        else:
+            self.flash_status = False
 
     def first_flash(self):
         result = self.hass.states.get(self.entity_id)
@@ -160,6 +162,10 @@ def setup(hass, config):
             light.one_flash()
         else:
             light.last_flash()
+
+    def start_sunrise(msg):
+        data = json.loads(msg.payload)
+        light = snipslight.lights[data['entity_id']]
 
     def get_flashlight_obj(data):
         site_id = data['siteId']
@@ -443,11 +449,12 @@ def setup(hass, config):
     mqtt.subscribe('hermes/asr/textCaptured', text_captured_received)
     mqtt.subscribe('hermes/tts/say', tts_say_received)
     mqtt.subscribe('hermes/dialogueManager/sessionEnded', session_ended_received)
-    mqtt.subscribe('hass/one_flash_finished', one_flash_finished_received)
     mqtt.subscribe('hermes/intent/domi:LampenAusSchalten', lights_off_received)
     mqtt.subscribe('hermes/intent/domi:LampenAnSchalten', lights_on_received)
     mqtt.subscribe('hermes/intent/domi:FarbeWechseln', color_change_received)
     mqtt.subscribe('hermes/intent/domi:LichtDimmen', dim_lights_received)
+    mqtt.subscribe('hass/one_flash_finished', one_flash_finished_received)
+    mqtt.subscribe('hass/start_sunrise', start_sunrise)
 
     # Return boolean to indicate that initialization was successfully.
     return True
