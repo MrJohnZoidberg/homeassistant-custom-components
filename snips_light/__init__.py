@@ -476,7 +476,7 @@ def setup(hass, config):
     mqtt.subscribe('hermes/intent/domi:FarbeWechseln', color_change_received)
     mqtt.subscribe('hermes/intent/domi:LichtDimmen', dim_lights_received)
     mqtt.subscribe('hass/one_flash_finished', one_flash_finished_received)
-    mqtt.subscribe('hass/start_sunrise', msg_start_sunrise)
+    mqtt.subscribe('external/alarmclock/sunriseStart', msg_start_sunrise)
 
     # Return boolean to indicate that initialization was successfully.
     return True
