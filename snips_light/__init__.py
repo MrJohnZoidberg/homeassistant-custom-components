@@ -43,6 +43,7 @@ class Light:
         self.saved_rgb_color = None
         self.saved_brightness = None
         self.current_rgb_color = None
+        self.sunrise_thread = None
 
     def store_light_attributes(self):
         self.saved_rgb_color = self.hass.states.get(self.entity_id).attributes['rgb_color']
@@ -123,11 +124,25 @@ class Light:
                     'transition': 0.3}
             self.hass.services.call('light', 'turn_on', data, True)
 
+    def sunrise(self, minutes):
+        brightness = 0
+        passed_seconds = 0
+        while brightness < 255 and self.sunrise_thread:
+            new_brightness = int(255 / (minutes * 60) * passed_seconds)
+            if new_brightness != brightness and not self.flash_status:
+                brightness = new_brightness
+                data = {'entity_id': self.entity_id,
+                        'brightness': brightness,
+                        'rgb_color': (255, 60, 0),
+                        'transition': 0.3}
+                self.hass.services.call('light', 'turn_on', data)
+            time.sleep(1)
+            passed_seconds += 1
+
 
 class SnipsLight:
     def __init__(self, hass, mqtt):
         self.lights = dict()
-        self.sunrise_threads = dict()
         for room_name in ROOMS:
             for light_dict in ROOMS[room_name]['lights']:
                 entity_id = light_dict['entity_id']
@@ -205,32 +220,15 @@ def setup(hass, config):
         if light.flash_status:
             light.flash_status = False
 
-    def sunrise_thread(lights, minutes, room):
-        def calc_brightness(duration_mins, passed_secs):
-            return 255 / (duration_mins * 60) * passed_secs
-        brightness = 0
-        passed_seconds = 0
-        while brightness < 255 and room in snipslight.sunrise_threads:
-            new_brightness = calc_brightness(minutes, passed_seconds)
-            if new_brightness != brightness and not lights[0].flash_status:
-                brightness = new_brightness
-                data = {'entity_id': lights[0].entity_id,
-                        'brightness': brightness,
-                        'rgb_color': (255, 60, 0),
-                        'transition': 0.3}
-                hass.services.call('light', 'turn_on', data)
-            time.sleep(1)
-            passed_seconds += 1
-
-    def msg_start_sunrise(msg):
+    def start_sunrise_received(msg):
         data = json.loads(msg.payload)
         room = data['room']
         if room not in ROOMS:
             return
         lights = [snipslight.lights[light_dict['entity_id']] for light_dict in ROOMS[room]['lights']]
-        minutes = data['minutes']
-        snipslight.sunrise_threads[room] = threading.Thread(target=sunrise_thread, args=(lights, minutes, room))
-        snipslight.sunrise_threads[room].start()
+        for light in lights:
+            light.sunrise_thread = threading.Thread(target=light.sunrise, args=(data['minutes'],))
+            light.sunrise_thread.start()
 
     def get_slot_dict(payload_data):
         slot_dict = {}
@@ -298,8 +296,8 @@ def setup(hass, config):
 
         for entity_id in entity_ids:
             light = snipslight.lights[entity_id]
-            if light.room in snipslight.sunrise_threads:
-                del snipslight.sunrise_threads[light.room]
+            if light.sunrise_thread:
+                light.sunrise_thread = None
             if entity_id == flash_light_entity_id and light.flash_status:
                 light.saved_state = 'off'
             else:
@@ -482,7 +480,7 @@ def setup(hass, config):
     mqtt.subscribe('hermes/intent/domi:FarbeWechseln', color_change_received)
     mqtt.subscribe('hermes/intent/domi:LichtDimmen', dim_lights_received)
     mqtt.subscribe('hass/one_flash_finished', one_flash_finished_received)
-    mqtt.subscribe('external/alarmclock/sunriseStart', msg_start_sunrise)
+    mqtt.subscribe('external/alarmclock/sunriseStart', start_sunrise_received)
 
     # Return boolean to indicate that initialization was successfully.
     return True
