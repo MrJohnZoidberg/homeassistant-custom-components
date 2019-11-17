@@ -33,10 +33,11 @@ BRIGHTNESS_MAX = 100
 
 
 class Light:
-    def __init__(self, hass, mqtt, entity_id):
+    def __init__(self, hass, mqtt, entity_id, room):
         self.hass = hass
         self.mqtt = mqtt
         self.entity_id = entity_id
+        self.room = room
         self.flash_status = False
         self.saved_state = None
         self.saved_rgb_color = None
@@ -130,7 +131,7 @@ class SnipsLight:
         for room_name in ROOMS:
             for light_dict in ROOMS[room_name]['lights']:
                 entity_id = light_dict['entity_id']
-                self.lights[entity_id] = Light(hass, mqtt, entity_id)
+                self.lights[entity_id] = Light(hass, mqtt, entity_id, room_name)
 
 
 def setup(hass, config):
@@ -210,10 +211,11 @@ def setup(hass, config):
         brightness = 0
         passed_seconds = 0
         while brightness < 255 and room in snipslight.sunrise_threads:
-            brightness = calc_brightness(minutes, passed_seconds)
-            if not lights[0].flash_status:
+            new_brightness = calc_brightness(minutes, passed_seconds)
+            if new_brightness != brightness and not lights[0].flash_status:
                 data = {'entity_id': lights[0].entity_id,
-                        'brightness': brightness}
+                        'brightness': brightness,
+                        'rgb_color': (255, 100, 0)}
                 hass.services.call('light', 'turn_on', data)
             time.sleep(1)
             passed_seconds += 1
@@ -294,6 +296,8 @@ def setup(hass, config):
 
         for entity_id in entity_ids:
             light = snipslight.lights[entity_id]
+            if light.room in snipslight.sunrise_threads:
+                del snipslight.sunrise_threads[light.room]
             if entity_id == flash_light_entity_id and light.flash_status:
                 light.saved_state = 'off'
             else:
