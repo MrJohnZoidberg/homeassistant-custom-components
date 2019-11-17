@@ -216,7 +216,8 @@ def setup(hass, config):
                 brightness = new_brightness
                 data = {'entity_id': lights[0].entity_id,
                         'brightness': brightness,
-                        'rgb_color': (255, 60, 0)}
+                        'rgb_color': (255, 60, 0),
+                        'transition': 0.3}
                 hass.services.call('light', 'turn_on', data)
             time.sleep(1)
             passed_seconds += 1
