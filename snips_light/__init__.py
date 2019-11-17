@@ -213,6 +213,7 @@ def setup(hass, config):
         while brightness < 255 and room in snipslight.sunrise_threads:
             new_brightness = calc_brightness(minutes, passed_seconds)
             if new_brightness != brightness and not lights[0].flash_status:
+                brightness = new_brightness
                 data = {'entity_id': lights[0].entity_id,
                         'brightness': brightness,
                         'rgb_color': (255, 100, 0)}
