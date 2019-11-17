@@ -1,6 +1,7 @@
 import time
 import json
 import webcolors
+import threading
 
 # The domain of your component. Should be equal to the name of your component.
 DOMAIN = 'snips_light'
@@ -125,6 +126,7 @@ class Light:
 class SnipsLight:
     def __init__(self, hass, mqtt):
         self.lights = dict()
+        self.sunrise_threads = dict()
         for room_name in ROOMS:
             for light_dict in ROOMS[room_name]['lights']:
                 entity_id = light_dict['entity_id']
@@ -162,10 +164,6 @@ def setup(hass, config):
             light.one_flash()
         else:
             light.last_flash()
-
-    def start_sunrise(msg):
-        data = json.loads(msg.payload)
-        light = snipslight.lights[data['entity_id']]
 
     def get_flashlight_obj(data):
         site_id = data['siteId']
@@ -205,6 +203,30 @@ def setup(hass, config):
             return
         if light.flash_status:
             light.flash_status = False
+
+    def sunrise_thread(lights, minutes, room):
+        def calc_brightness(duration_mins, passed_secs):
+            return 255 / (duration_mins * 60) * passed_secs
+        brightness = 0
+        passed_seconds = 0
+        while brightness < 255 and room in snipslight.sunrise_threads:
+            brightness = calc_brightness(minutes, passed_seconds)
+            if not lights[0].flash_status:
+                data = {'entity_id': lights[0].entity_id,
+                        'brightness': brightness}
+                hass.services.call('light', 'turn_on', data)
+            time.sleep(1)
+            passed_seconds += 1
+
+    def msg_start_sunrise(msg):
+        data = json.loads(msg.payload)
+        room = data['room']
+        if room not in ROOMS:
+            return
+        lights = [snipslight.lights[light_dict['entity_id']] for light_dict in ROOMS[room]['lights']]
+        minutes = data['minutes']
+        snipslight.sunrise_threads[room] = threading.Thread(target=sunrise_thread, args=(lights, minutes, room))
+        snipslight.sunrise_threads[room].start()
 
     def get_slot_dict(payload_data):
         slot_dict = {}
@@ -454,7 +476,7 @@ def setup(hass, config):
     mqtt.subscribe('hermes/intent/domi:FarbeWechseln', color_change_received)
     mqtt.subscribe('hermes/intent/domi:LichtDimmen', dim_lights_received)
     mqtt.subscribe('hass/one_flash_finished', one_flash_finished_received)
-    mqtt.subscribe('hass/start_sunrise', start_sunrise)
+    mqtt.subscribe('hass/start_sunrise', msg_start_sunrise)
 
     # Return boolean to indicate that initialization was successfully.
     return True
