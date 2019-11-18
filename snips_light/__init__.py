@@ -133,8 +133,7 @@ class Light:
                 brightness = new_brightness
                 data = {'entity_id': self.entity_id,
                         'brightness': brightness,
-                        'rgb_color': (255, 60, 0),
-                        'transition': 0.3}
+                        'rgb_color': (255, 60, 0)}
                 self.hass.services.call('light', 'turn_on', data)
             time.sleep(1)
             passed_seconds += 1
