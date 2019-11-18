@@ -138,6 +138,11 @@ class Light:
                 self.hass.services.call('light', 'turn_on', data)
             time.sleep(1)
             passed_seconds += 1
+        self.sunrise_thread = None
+
+    def start_sunrise(self, minutes):
+        self.sunrise_thread = threading.Thread(target=self.sunrise, args=(minutes,))
+        self.sunrise_thread.start()
 
 
 class SnipsLight:
@@ -227,8 +232,11 @@ def setup(hass, config):
             return
         lights = [snipslight.lights[light_dict['entity_id']] for light_dict in ROOMS[room]['lights']]
         for light in lights:
-            light.sunrise_thread = threading.Thread(target=light.sunrise, args=(data['minutes'],))
-            light.sunrise_thread.start()
+            if not light.sunrise_thread:
+                light.start_sunrise(data['minutes'])
+            else:
+                light.sunrise_thread = None
+                threading.Timer(2, light.start_sunrise, (data['minutes'],))
 
     def get_slot_dict(payload_data):
         slot_dict = {}
