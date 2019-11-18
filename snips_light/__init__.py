@@ -245,7 +245,7 @@ def setup(hass, config):
                 light.start_sunrise(data['minutes'])
             else:
                 light.sunrise_thread = None
-                threading.Timer(2, light.start_sunrise, (data['minutes'],))
+                threading.Timer(2, light.start_sunrise, (data['minutes'],)).start()
 
     def get_slot_dict(payload_data):
         slot_dict = {}
