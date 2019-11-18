@@ -144,6 +144,16 @@ class Light:
         self.sunrise_thread = threading.Thread(target=self.sunrise, args=(minutes,))
         self.sunrise_thread.start()
 
+    def turn_off(self):
+        if self.sunrise_thread:
+            self.sunrise_thread = None
+        if self.flash_status:
+            self.saved_state = 'off'
+        else:
+            data = {'entity_id': self.entity_id,
+                    'transition': 0.3}
+            self.hass.services.call('light', 'turn_off', data)
+
 
 class SnipsLight:
     def __init__(self, hass, mqtt):
@@ -303,15 +313,7 @@ def setup(hass, config):
             return
 
         for entity_id in entity_ids:
-            light = snipslight.lights[entity_id]
-            if light.sunrise_thread:
-                light.sunrise_thread = None
-            if entity_id == flash_light_entity_id and light.flash_status:
-                light.saved_state = 'off'
-            else:
-                data = {'entity_id': entity_id,
-                        'transition': 0.3}
-                hass.services.call('light', 'turn_off', data)
+            snipslight.lights[entity_id].turn_off()
 
         req_room = slot_dict.get('location')
         if is_single_other_room(req_room, payload_data['siteId']):
