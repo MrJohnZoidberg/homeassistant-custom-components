@@ -44,6 +44,7 @@ class Light:
         self.saved_brightness = None
         self.current_rgb_color = None
         self.sunrise_thread = None
+        self.cancel_sunrise = False
 
     def store_light_attributes(self):
         self.saved_rgb_color = self.hass.states.get(self.entity_id).attributes['rgb_color']
@@ -53,7 +54,7 @@ class Light:
         self.flash_status = True
         success = self.first_flash()
         if success:
-            self.mqtt.publish('hass/one_flash_finished', json.dumps({'entity_id': self.entity_id}))
+            self.mqtt.publish('homeassistant/oneFlashFinished', json.dumps({'entity_id': self.entity_id}))
         else:
             self.flash_status = False
 
@@ -125,9 +126,10 @@ class Light:
             self.hass.services.call('light', 'turn_on', data, True)
 
     def sunrise(self, minutes):
+        self.cancel_sunrise = False
         brightness = 0
         passed_seconds = 0
-        while brightness < 255 and self.sunrise_thread:
+        while brightness < 255 and not self.cancel_sunrise:
             new_brightness = int(255 / (minutes * 60) * passed_seconds)
             if new_brightness != brightness and not self.flash_status:
                 brightness = new_brightness
@@ -488,8 +490,8 @@ def setup(hass, config):
     mqtt.subscribe('hermes/intent/domi:LampenAnSchalten', lights_on_received)
     mqtt.subscribe('hermes/intent/domi:FarbeWechseln', color_change_received)
     mqtt.subscribe('hermes/intent/domi:LichtDimmen', dim_lights_received)
-    mqtt.subscribe('hass/one_flash_finished', one_flash_finished_received)
-    mqtt.subscribe('external/alarmclock/sunriseStart', start_sunrise_received)
+    mqtt.subscribe('homeassistant/oneFlashFinished', one_flash_finished_received)
+    mqtt.subscribe('homeassistant/sunriseStart', start_sunrise_received)
 
     # Return boolean to indicate that initialization was successfully.
     return True
