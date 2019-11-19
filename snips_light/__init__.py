@@ -44,6 +44,7 @@ class Light:
         self.saved_brightness = None
         self.current_rgb_color = None
         self.sunrise_thread = None
+        self.sunrise_duration = 0
         self.sunrise_passed_seconds = 0
         self.sunrise_brightness = 0
 
@@ -126,11 +127,11 @@ class Light:
                     'transition': 0.3}
             self.hass.services.call('light', 'turn_on', data, True)
 
-    def sunrise(self, minutes):
+    def sunrise(self):
         self.sunrise_brightness = 0
         self.sunrise_passed_seconds = 0
         while self.sunrise_brightness < 255 and self.sunrise_thread:
-            new_brightness = int(255 / (minutes * 60) * self.sunrise_passed_seconds)
+            new_brightness = int(255 / (self.sunrise_duration * 60) * self.sunrise_passed_seconds)
             if new_brightness != self.sunrise_brightness and not self.flash_status:
                 self.sunrise_brightness = new_brightness
                 data = {'entity_id': self.entity_id,
@@ -239,11 +240,13 @@ def setup(hass, config):
             return
         lights = [snipslight.lights[light_dict['entity_id']] for light_dict in ROOMS[room]['lights']]
         for light in lights:
+            light.sunrise_duration = data['minutes']
             if not light.sunrise_thread:
-                light.sunrise_thread = threading.Thread(target=light.sunrise, args=(data['minutes'],))
+                light.sunrise_thread = threading.Thread(target=light.sunrise)
                 light.sunrise_thread.start()
             else:
-
+                light.sunrise_passed_seconds = 0
+                light.sunrise_brightness = 0
 
     def get_slot_dict(payload_data):
         slot_dict = {}
