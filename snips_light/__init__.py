@@ -137,9 +137,8 @@ class Light:
                         'brightness': brightness,
                         'rgb_color': (255, 60, 0)}
                 self.hass.services.call('light', 'turn_on', data)
-            time.sleep(1)
-            passed_seconds += 1
-        self.sunrise_thread = None
+            time.sleep(0.5)
+            passed_seconds += 0.5
 
     def start_sunrise(self, minutes):
         self.sunrise_thread = threading.Thread(target=self.sunrise, args=(minutes,))
@@ -247,7 +246,8 @@ def setup(hass, config):
                 light.start_sunrise(data['minutes'])
             else:
                 light.cancel_sunrise = True
-                threading.Timer(3, light.start_sunrise, (data['minutes'],)).start()
+                light.sunrise_thread.join()
+                light.start_sunrise(data['minutes'])
 
     def get_slot_dict(payload_data):
         slot_dict = {}
