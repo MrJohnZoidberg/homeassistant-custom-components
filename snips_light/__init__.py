@@ -22,9 +22,9 @@ ROOMS = {
 }
 SNIPS_SITE_IDS = {'bedroom': 'Schlafzimmer'}
 
-COLOR_LISTEN = (0, 0, 255)
+COLOR_LISTEN = (255, 0, 255)
 COLOR_LOAD = (0, 255, 255)
-COLOR_SPEAK = (0, 255, 0)
+COLOR_SPEAK = (180, 255, 0)
 
 BRIGHTNESS_BEHAVIOR = 'exp'  # lin or exp
 BRIGHTNESS_STEP = 20
