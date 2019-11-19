@@ -95,7 +95,7 @@ class Light:
                     'transition': 0.3}
             self.hass.services.call('light', 'turn_on', data, True)
         time.sleep(0.4)
-        self.mqtt.publish('hass/one_flash_finished', json.dumps({'entity_id': self.entity_id}))
+        self.mqtt.publish('homeassistant/oneFlashFinished', json.dumps({'entity_id': self.entity_id}))
 
     def last_flash(self):
         if self.saved_state == 'off':
