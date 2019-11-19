@@ -246,7 +246,7 @@ def setup(hass, config):
             if not light.sunrise_thread:
                 light.start_sunrise(data['minutes'])
             else:
-                light.sunrise_thread = None
+                light.cancel_sunrise = True
                 threading.Timer(3, light.start_sunrise, (data['minutes'],)).start()
 
     def get_slot_dict(payload_data):
