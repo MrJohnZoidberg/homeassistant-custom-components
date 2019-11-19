@@ -44,7 +44,8 @@ class Light:
         self.saved_brightness = None
         self.current_rgb_color = None
         self.sunrise_thread = None
-        self.cancel_sunrise = False
+        self.sunrise_passed_seconds = 0
+        self.sunrise_brightness = 0
 
     def store_light_attributes(self):
         self.saved_rgb_color = self.hass.states.get(self.entity_id).attributes['rgb_color']
@@ -126,23 +127,19 @@ class Light:
             self.hass.services.call('light', 'turn_on', data, True)
 
     def sunrise(self, minutes):
-        self.cancel_sunrise = False
-        brightness = 0
-        passed_seconds = 0
-        while brightness < 255 and not self.cancel_sunrise:
-            new_brightness = int(255 / (minutes * 60) * passed_seconds)
-            if new_brightness != brightness and not self.flash_status:
-                brightness = new_brightness
+        self.sunrise_brightness = 0
+        self.sunrise_passed_seconds = 0
+        while self.sunrise_brightness < 255 and self.sunrise_thread:
+            new_brightness = int(255 / (minutes * 60) * self.sunrise_passed_seconds)
+            if new_brightness != self.sunrise_brightness and not self.flash_status:
+                self.sunrise_brightness = new_brightness
                 data = {'entity_id': self.entity_id,
-                        'brightness': brightness,
+                        'brightness': self.sunrise_brightness,
                         'rgb_color': (255, 60, 0)}
                 self.hass.services.call('light', 'turn_on', data)
-            time.sleep(0.5)
-            passed_seconds += 0.5
-
-    def start_sunrise(self, minutes):
-        self.sunrise_thread = threading.Thread(target=self.sunrise, args=(minutes,))
-        self.sunrise_thread.start()
+            time.sleep(1)
+            self.sunrise_passed_seconds += 1
+        self.sunrise_thread = None
 
     def turn_off(self):
         if self.sunrise_thread:
@@ -243,11 +240,10 @@ def setup(hass, config):
         lights = [snipslight.lights[light_dict['entity_id']] for light_dict in ROOMS[room]['lights']]
         for light in lights:
             if not light.sunrise_thread:
-                light.start_sunrise(data['minutes'])
+                light.sunrise_thread = threading.Thread(target=light.sunrise, args=(data['minutes'],))
+                light.sunrise_thread.start()
             else:
-                light.cancel_sunrise = True
-                light.sunrise_thread.join()
-                light.start_sunrise(data['minutes'])
+
 
     def get_slot_dict(payload_data):
         slot_dict = {}
